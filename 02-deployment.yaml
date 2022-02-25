@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: benchmark-log-reader
+  name: benchmark-log-reader
+  namespace: benchmark-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: benchmark-log-reader
+  template:
+    metadata:
+      labels:
+        app: benchmark-log-reader
+    spec:
+      containers:
+      - name: benchmark-log-reader
+        image: quay.io/dagray/log-reader:latest
+        ports:
+        - containerPort: 8449
+          name: web
+        imagePullPolicy: Always
+        command: ["python3", "-u", "/usr/local/bin/export-hammerdb-prom.py"]
+      serviceAccountName: benchmark-log-reader-serviceaccount
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: benchmark-log-reader-service
+  annotations:
+    prometheus.io/scrape: 'true'
+  labels:
+    app: benchmark-log-reader
+spec:
+  ports:
+    - port: 8449
+      name: web
+      targetPort: web
+  selector:
+    app: benchmark-log-reader
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: benchmark-log-reader
+  name: benchmark-log-reader-servicemonitor
+  namespace: benchmark-operator
+spec:
+  endpoints:
+  - interval: 30s
+    port: web
+    scheme: http
+    #interval: 30s
+    #bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    #scheme: http
+    #tlsConfig:
+    #  caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+    #  serverName: special-resource-controller-manager-metrics-service.openshift-special-resource-operator.svc
+  selector:
+    matchLabels:
+      app: benchmark-log-reader
